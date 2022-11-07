@@ -78,15 +78,21 @@ class RegexParser(Parser):
         return ParseResult.FAILED
 
 
-class SequenceParser(Parser):
+class CombinedParser(Parser):
     def __init__(self) -> None:
         super().__init__()
         self.parsers = ()
 
-    def define(self, *parsers: Parser) -> SequenceParser:
+    def define(self, *parsers: Parser) -> CombinedParser:
+        if len(parsers) == 1 and isinstance(parsers[0], type(self)):
+            parsers = parsers[0].parsers
+
         self.parsers = parsers
+
         return self
 
+
+class SequenceParser(CombinedParser):
     def parse(self, text: str, partially: bool = False) -> ParseResult:
         # TODO: Parse non recursive first
 
@@ -110,16 +116,10 @@ class SequenceParser(Parser):
         return ParseResult(self, results)
 
 
-class GroupParser(Parser):
-    def __init__(self) -> None:
-        super().__init__()
-        self.parsers = ()
-
-    def define(self, *parsers: Parser) -> GroupParser:
-        self.parsers = parsers
-        return self
-
+class GroupParser(CombinedParser):
     def parse(self, text: str, partially: bool = False) -> ParseResult:
+        # TODO: Consider returning the parseresult that consumes most of the input string (or all parseresults that didn't fail)
+
         for parser in self.parsers:
             result = parser.parse(text, partially)
 
@@ -129,20 +129,34 @@ class GroupParser(Parser):
         return ParseResult.FAILED
 
 
-ident = RegexParser(r"[A-z]*")
-string = RegexParser(r"\"[^\"]*\"")
-lpar = LiteralParser("(")
-rpar = LiteralParser(")")
-dot = LiteralParser(".")
+# ident = RegexParser(r"[A-z]*")
+# string = RegexParser(r"\"[^\"]*\"")
+# lpar = LiteralParser("(")
+# rpar = LiteralParser(")")
+# dot = LiteralParser(".")
 
-call = SequenceParser()
-objseq = SequenceParser()
-object = objseq | ident
+# call = SequenceParser()
+# objseq = SequenceParser()
+# object = objseq | ident
 
-call.define(object, lpar, string, rpar)
-objseq.define(object, dot, ident)
+# call.define(object, lpar, string, rpar)
+# objseq.define(object, dot, ident)
 
 # parsed = call.parse('System.out.println("Hello, world!")')
-parsed = object.parse("System.out.println")
+# parsed = object.parse("System.out.println")
+
+expr = GroupParser()
+add = SequenceParser()
+mult = SequenceParser()
+
+num = RegexParser(r"[0-9]+")
+plus = LiteralParser("+")
+star = LiteralParser("*")
+
+expr.define(num, add, mult)
+add.define(expr, plus, expr)
+mult.define(expr, star, expr)
+
+parsed = expr.parse("1+2")
 
 print(parsed)
